@@ -3,6 +3,7 @@ from decimal import Decimal
 from random import randint
 from sqlalchemy import extract, func, select, update
 from sqlalchemy.orm import Session
+from shared.config import get_settings
 from shared.models import DeliverableCode, Order, OrderStatus, PaymentMethod, Product, User, now_utc
 
 class StockUnavailable(Exception):
@@ -33,7 +34,8 @@ def ensure_user(db: Session, telegram_id: int, username=None, full_name=None) ->
     db.add(user); db.flush()
     return user
 
-def create_order(db: Session, product_id: int, user: User | None, payment_method: PaymentMethod = PaymentMethod.upi, expiry_minutes: int = 30) -> Order:
+def create_order(db: Session, product_id: int, user: User | None, payment_method: PaymentMethod = PaymentMethod.upi, expiry_minutes: int | None = None) -> Order:
+    expiry_minutes = expiry_minutes or get_settings().order_expiry_minutes
     product = db.get(Product, product_id)
     if not product or not product.is_active:
         raise ValueError('Product unavailable')
@@ -68,9 +70,15 @@ def reject_payment(db: Session, order_id: int) -> Order:
     order.status = OrderStatus.rejected
     db.flush(); return order
 
+def expired_pending_orders(db: Session) -> list[Order]:
+    orders = db.scalars(select(Order).where(Order.status == OrderStatus.pending, Order.expires_at < now_utc())).all()
+    for order in orders:
+        order.status = OrderStatus.expired
+    db.flush()
+    return orders
+
 def expire_pending_orders(db: Session) -> int:
-    result = db.execute(update(Order).where(Order.status == OrderStatus.pending, Order.expires_at < now_utc()).values(status=OrderStatus.expired))
-    return result.rowcount or 0
+    return len(expired_pending_orders(db))
 
 def create_manual_sale(db: Session, product_id: int, note_user: User | None = None) -> Order:
     product = db.get(Product, product_id)
