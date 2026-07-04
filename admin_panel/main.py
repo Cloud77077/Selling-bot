@@ -42,7 +42,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), admin=Depends(cur
 
 @app.get('/products')
 def products(request: Request, db: Session = Depends(get_db), admin=Depends(current_admin)):
-    return templates.TemplateResponse('products/list.html', {'request':request, 'products': db.scalars(select(Product)).all(), 'stock_count': stock_count})
+    return templates.TemplateResponse('products/list.html', {'request':request, 'products': db.scalars(select(Product)).all(), 'stock_count': stock_count, 'db': db})
 
 @app.post('/products')
 def save_product(name: str = Form(), price: float = Form(), description: str = Form(''), image: UploadFile | None = File(None), db: Session = Depends(get_db), admin=Depends(current_admin)):

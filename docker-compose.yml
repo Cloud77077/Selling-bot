@@ -5,20 +5,46 @@ services:
       POSTGRES_DB: selling_bot
       POSTGRES_USER: selling_bot
       POSTGRES_PASSWORD: selling_bot
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [selling_bot]
   bot:
     build: .
     env_file: .env
     depends_on: [postgres]
     command: python -m bot.main
+    volumes:
+      - ./admin_panel/static/uploads:/app/admin_panel/static/uploads
+    networks: [selling_bot]
   admin_panel:
     build: .
     env_file: .env
     depends_on: [postgres]
     command: uvicorn admin_panel.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./admin_panel/static/uploads:/app/admin_panel/static/uploads
+    networks: [selling_bot]
   nginx:
     image: nginx:alpine
+    env_file: .env
     ports: ['80:80','443:443']
-    volumes: ['./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro']
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./admin_panel/static/uploads:/app/admin_panel/static/uploads:ro
+      - certbot-www:/var/www/certbot
+      - certbot-etc:/etc/letsencrypt
     depends_on: [admin_panel]
-volumes: {pgdata: {}}
+    networks: [selling_bot]
+  certbot:
+    image: certbot/certbot
+    env_file: .env
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-etc:/etc/letsencrypt
+    networks: [selling_bot]
+volumes:
+  pgdata: {}
+  certbot-www: {}
+  certbot-etc: {}
+networks:
+  selling_bot: {}
