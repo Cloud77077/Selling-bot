@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: selling_bot
+      POSTGRES_USER: selling_bot
+      POSTGRES_PASSWORD: selling_bot
+    volumes: [pgdata:/var/lib/postgresql/data]
+  bot:
+    build: .
+    env_file: .env
+    depends_on: [postgres]
+    volumes: ['./media:/app/media']
+    command: python -m bot.main
+  admin_panel:
+    build: .
+    env_file: .env
+    depends_on: [postgres]
+    volumes: ['./media:/app/media']
+    command: uvicorn admin_panel.main:app --host 0.0.0.0 --port 8000
+  nginx:
+    image: nginx:alpine
+    env_file: .env
+    ports: ['80:80','443:443']
+    volumes:
+      - './nginx/default.conf:/etc/nginx/templates/default.conf.template:ro'
+      - './media:/app/media:ro'
+      - './certbot/www:/var/www/certbot:ro'
+      - './certbot/conf:/etc/letsencrypt:ro'
+    depends_on: [admin_panel]
+  certbot:
+    image: certbot/certbot
+    env_file: .env
+    volumes:
+      - './certbot/www:/var/www/certbot'
+      - './certbot/conf:/etc/letsencrypt'
+volumes: {pgdata: {}}
